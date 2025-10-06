@@ -1,0 +1,44 @@
+name: Update Shopify Product Price
+
+on:
+  workflow_dispatch:
+    inputs:
+      new_price:
+        description: "Nuevo precio para el producto de prueba"
+        required: true
+        type: string
+
+jobs:
+  update-price:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Update product price in Shopify
+        env:
+          SHOPIFY_STORE_URL: ${{ secrets.SHOPIFY_STORE_URL }}
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          TEST_SKU: ${{ secrets.TEST_SKU }}
+          NEW_PRICE: ${{ github.event.inputs.new_price }}
+        run: |
+          echo "Buscando producto con SKU: $TEST_SKU"
+          PRODUCT_ID=$(curl -s -X GET "$SHOPIFY_STORE_URL/admin/api/2025-01/products.json?sku=$TEST_SKU" \
+            -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" | jq -r '.products[0].id')
+          
+          if [ "$PRODUCT_ID" = "null" ] || [ -z "$PRODUCT_ID" ]; then
+            echo "Producto no encontrado con SKU: $TEST_SKU"
+            exit 1
+          fi
+
+          VARIANT_ID=$(curl -s -X GET "$SHOPIFY_STORE_URL/admin/api/2025-01/products/$PRODUCT_ID/variants.json" \
+            -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" | jq -r '.variants[0].id')
+
+          echo "Actualizando precio de la variante $VARIANT_ID a $NEW_PRICE"
+
+          curl -X PUT "$SHOPIFY_STORE_URL/admin/api/2025-01/variants/$VARIANT_ID.json" \
+            -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"variant\":{\"id\":$VARIANT_ID,\"price\":\"$NEW_PRICE\"}}"
+
+          echo "✅ Precio actualizado correctamente."
