@@ -1,0 +1,12 @@
+{
+  "name": "sync-ml-shopify",
+  "version": "1.2.0",
+  "type": "module",
+  "scripts": {
+    "start": "node sync-ml-to-shopify.js"
+  },
+  "dependencies": {
+    "node-fetch": "^3.4.0",
+    "p-queue": "^7.3.0"
+  }
+}

@@ -1,0 +1,4 @@
+# Put one MercadoLibre item id (SKU) per line. Example:
+MLA123456789
+MLA987654321
+# Remove lines starting with # or empty lines when you edit.
