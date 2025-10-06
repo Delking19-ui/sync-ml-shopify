@@ -1,44 +1,45 @@
-name: Update Shopify Product Price
+name: Sync ML -> Shopify (sku_list support)
 
 on:
   workflow_dispatch:
     inputs:
-      new_price:
-        description: "Nuevo precio para el producto de prueba"
-        required: true
-        type: string
+      run_mode:
+        description: 'manual | test'
+        required: false
+        default: 'manual'
+  schedule:
+    - cron: '0 7 * * *' # 07:00 UTC = 02:00 Bogotá (adjust if needed)
 
 jobs:
-  update-price:
+  sync:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Update product price in Shopify
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run sync script (batch / SKU list / full sync)
         env:
-          SHOPIFY_STORE_URL: ${{ secrets.SHOPIFY_STORE_URL }}
-          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          SHOP_DOMAIN: ${{ secrets.SHOP_DOMAIN }}
+          SHOPIFY_ADMIN_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
+          ML_TOKEN: ${{ secrets.ML_TOKEN }}
           TEST_SKU: ${{ secrets.TEST_SKU }}
-          NEW_PRICE: ${{ github.event.inputs.new_price }}
+          FULL_SYNC: ${{ secrets.FULL_SYNC }}
+          BATCH_SIZE: ${{ secrets.BATCH_SIZE }}
+          SKU_LIST: ${{ secrets.SKU_LIST }}
         run: |
-          echo "Buscando producto con SKU: $TEST_SKU"
-          PRODUCT_ID=$(curl -s -X GET "$SHOPIFY_STORE_URL/admin/api/2025-01/products.json?sku=$TEST_SKU" \
-            -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" | jq -r '.products[0].id')
-          
-          if [ "$PRODUCT_ID" = "null" ] || [ -z "$PRODUCT_ID" ]; then
-            echo "Producto no encontrado con SKU: $TEST_SKU"
-            exit 1
+          echo "Starting sync: TEST_SKU=${TEST_SKU:-<none>} FULL_SYNC=${FULL_SYNC:-false}"
+          if [ -f sku_list.txt ]; then
+            echo "sku_list.txt detected in repo — script will process SKUs from file."
+          else
+            echo "No sku_list.txt found in repo."
           fi
-
-          VARIANT_ID=$(curl -s -X GET "$SHOPIFY_STORE_URL/admin/api/2025-01/products/$PRODUCT_ID/variants.json" \
-            -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" | jq -r '.variants[0].id')
-
-          echo "Actualizando precio de la variante $VARIANT_ID a $NEW_PRICE"
-
-          curl -X PUT "$SHOPIFY_STORE_URL/admin/api/2025-01/variants/$VARIANT_ID.json" \
-            -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"variant\":{\"id\":$VARIANT_ID,\"price\":\"$NEW_PRICE\"}}"
-
-          echo "✅ Precio actualizado correctamente."
+          node sync-ml-to-shopify.js
+ 
